@@ -93,12 +93,56 @@
             font-size: 12px;
             overflow-x: auto;
         }
+
+        .slide-navigation {
+            background: #2563eb;
+            padding: 15px 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .slide-nav-btn {
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+        
+        .slide-nav-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .slide-nav-btn.active {
+            background: white;
+            color: #2563eb;
+        }
+        
+        .slide-counter {
+            margin-left: auto;
+            color: white;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
+    
     <div class="chart-container">
+        <div class="slide-navigation">
+            <button class="slide-nav-btn active" onclick="showSlide(1)">1. Country Overview</button>
+            <button class="slide-nav-btn" onclick="showSlide(2)">2. Time Range Analysis</button>
+            <button class="slide-nav-btn" onclick="showSlide(3)">3. Country-Specific View</button>
+            <div class="slide-counter">
+                <span id="current-slide">1</span> / 3
+            </div>
+        </div>
         <div id="chart"></div>
         <div class="tooltip" id="tooltip"></div>
+        <div class="slider"></div>
     </div>
 
     <script>
@@ -120,7 +164,7 @@
         // Create tooltip
         const tooltip = d3.select("#tooltip");
 
-        // Sample data (used if CSV loading fails)
+        // embedded CSV to avoid doing network calls
         const embeddedCSV = `Country Name,2023,2022,2021,2020,2019,2018,2017,2016,2015,2014,2013,2012,2011,2010,2009,2008,2007,2006,2005,2004,2003,2002,2001,2000,1999,1998,1997,1996,1995,1994,1993,1992,1991,1990,1989,1988,1987,1986,1985,1984,1983,1982,1981,1980,1979,1978,1977,1976,1975
 Afghanistan,8.7073,8.2599,7.9308,7.0541,7.2491,7.932,8.0661,7.5276,8.3465,7.8257,8.3,9.7678,11.4087,7.7889,6.0828,3.8334,2.0096,1.4083,1.2663,0.8929,1.008,0.9423,0.9447,1.0161,1.3755,1.4204,1.3846,1.4172,1.463,1.6852,1.7848,1.8199,2.847,2.9222,2.896,3.0879,3.2728,3.9416,4.1234,3.2247,3.0017,2.3096,2.2599,2.0064,2.0593,1.9341,2.2826,1.8926,2.029
 Albania,4.5918,4.609,5.0393,4.5608,4.9535,5.3056,5.3415,4.5303,4.8635,5.0958,4.7693,4.5329,4.9882,4.5569,4.2746,4.1946,4.2444,4.1347,4.1485,4.414,4.2112,4.0064,3.4393,3.2325,3.0866,1.9147,1.5805,2.0549,2.07,2.3441,2.2227,2.363,4.3795,6.645,7.9059,8.1996,8.2927,8.1514,8.0739,8.4312,7.7922,7.273,7.0726,8.0735,7.9367,6.821,6.2009,5.7966,5.4241
@@ -347,7 +391,14 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
             const line = d3.line()
                 .x(d => xScale(d.date))
                 .y(d => yScale(d.value));
-                // .curve(d3.curveMonotoneX);
+            
+            // Create a clipping path to prevent line from extending beyond chart area
+            g.append("defs").append("clipPath")
+                .attr("id", "clip")
+                .append("rect")
+                .attr("width", width)
+                .attr("height", height);
+
 
             // Add grid lines
             g.append("g")
@@ -366,14 +417,14 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
                 );
 
             // Add X axis
-            g.append("g")
+            const xAxis = g.append("g")
                 .attr("class", "axis")
                 .attr("transform", `translate(0,${height})`)
                 .call(d3.axisBottom(xScale)
                     .tickFormat(d3.timeFormat("%Y")));
 
             // Add Y axis
-            g.append("g")
+            const yAxis = g.append("g")
                 .attr("class", "axis")
                 .call(d3.axisLeft(yScale));
 
@@ -392,12 +443,13 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
                 .attr("x", 0 - (height / 2))
                 .attr("dy", "1em")
                 .style("text-anchor", "middle")
-                .text("Carbon dioxide (CO2) emissions (total) excluding LULUCF (Mt CO2e)");
+                .text("Total CO2 emissions (Mt CO2e)");
 
             // Add the line
-            g.append("path")
+            const path = g.append("path")
                 .datum(data)
                 .attr("class", "line")
+                .attr("clip-path", "url(#clip)")
                 .attr("d", line);
 
             // Add dots
@@ -412,7 +464,7 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
                     tooltip.transition()
                         .duration(200)
                         .style("opacity", .9);
-                    tooltip.html(`Date: ${d3.timeFormat("%B %d, %Y")(d.date)}<br/>Value: ${d.value}`)
+                    tooltip.html(`Year: ${d3.timeFormat("%Y")(d.date)}<br/>Value: ${Math.round(d.value * 100) / 100}`)
                         .style("left", (event.pageX + 10) + "px")
                         .style("top", (event.pageY - 28) + "px");
                 })
@@ -421,6 +473,81 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
                         .duration(500)
                         .style("opacity", 0);
                 });
+
+            // Create slider
+            const sliderWidth = 600;
+            const sliderHeight = 40;
+            const sliderMargin = { top: 10, right: 30, bottom: 20, left: 30 };
+
+            const sliderScale = d3.scaleTime()
+                .domain(d3.extent(data, d => d.date))
+                .range([0, sliderWidth]);
+
+            const brush = d3.brushX()
+                .extent([[0, 0], [sliderWidth, sliderHeight - sliderMargin.bottom]])
+                .on("brush end", brushed);
+
+            const sliderSvg = d3.select(".slider")
+                .append("svg")
+                .attr("width", sliderWidth + sliderMargin.left + sliderMargin.right)
+                .attr("height", sliderHeight + sliderMargin.top + sliderMargin.bottom)
+                .append("g")
+                .attr("transform", "translate(20,10)");
+
+            sliderSvg.append("g")
+                .attr("class", "x-axis")
+                .attr("transform", "translate(0,30)")
+                .call(d3.axisBottom(sliderScale));
+
+            sliderSvg.append("g")
+                .attr("class", "brush")
+                .call(brush)
+                .call(brush.move, sliderScale.range()); // default full range
+
+            function brushed(event) {
+                if (!event.selection) return;
+
+                const [start, end] = event.selection.map(sliderScale.invert);
+                const visibleData = data.filter(d => d.date >= start && d.date <= end);
+                console.log(visibleData);
+
+                // Update x domain
+                xScale.domain([start, end]);
+
+                // Redraw axis and line
+                xAxis.call(d3.axisBottom(xScale));
+                yAxis.call(d3.axisLeft(yScale));
+                path.attr("d", line);
+
+                // Update dots
+                const dots = g.selectAll(".dot")
+                    .data(visibleData);
+            
+                // Remove dots that are no longer visible
+                dots.exit().remove();
+
+                // Add new dots
+                dots.enter().append("circle")
+                    .attr("class", "dot")
+                    .merge(dots)
+                    .attr("cx", d => xScale(d.date))
+                    .attr("cy", d => yScale(d.value))
+                    .attr("r", 4)
+                    .on("mouseover", function(event, d) {
+                        tooltip.transition()
+                            .duration(200)
+                            .style("opacity", .9);
+                        tooltip.html(`Year: ${d3.timeFormat("%Y")(d.date)}<br/>Value: ${Math.round(d.value * 100) / 100}`)
+                            .style("left", (event.pageX + 10) + "px")
+                            .style("top", (event.pageY - 28) + "px");
+                    })
+                    .on("mouseout", function(d) {
+                        tooltip.transition()
+                            .duration(500)
+                            .style("opacity", 0);
+                    })
+                    .transition();
+            }
         }
 
         function loadEmbeddedData() {
