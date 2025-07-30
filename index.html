@@ -11,7 +11,7 @@
             margin: 20px;
             background-color: #f5f5f5;
         }
-        
+
         .chart-container {
             background: white;
             border-radius: 8px;
@@ -20,49 +20,49 @@
             max-width: 900px;
             margin: 0 auto;
         }
-        
+
         .chart-title {
             text-align: center;
             margin-bottom: 20px;
             color: #333;
             font-size: 24px;
         }
-        
+
         .axis {
             font-size: 12px;
         }
-        
+
         .axis-label {
             font-size: 14px;
             font-weight: bold;
         }
-        
+
         .line {
             fill: none;
             stroke: #2563eb;
             stroke-width: 2;
         }
-        
+
         .dot {
             fill: #2563eb;
             stroke: white;
             stroke-width: 2;
         }
-        
+
         .dot:hover {
             fill: #1d4ed8;
             r: 6;
         }
-        
+
         .grid line {
             stroke: #e5e7eb;
             stroke-dasharray: 2,2;
         }
-        
+
         .grid path {
             stroke-width: 0;
         }
-        
+
         .tooltip {
             position: absolute;
             padding: 10px;
@@ -74,7 +74,7 @@
             opacity: 0;
             transition: opacity 0.3s;
         }
-        
+
         .instructions {
             background: #e0f2fe;
             border: 1px solid #0288d1;
@@ -82,7 +82,7 @@
             padding: 15px;
             margin-bottom: 20px;
         }
-        
+
         .code-block {
             background: #f8f9fa;
             border: 1px solid #dee2e6;
@@ -101,7 +101,7 @@
             gap: 10px;
             align-items: center;
         }
-        
+
         .slide-nav-btn {
             padding: 8px 16px;
             background: rgba(255,255,255,0.2);
@@ -112,16 +112,16 @@
             transition: all 0.3s;
             font-weight: 500;
         }
-        
+
         .slide-nav-btn:hover {
             background: rgba(255,255,255,0.3);
         }
-        
+
         .slide-nav-btn.active {
             background: white;
             color: #2563eb;
         }
-        
+
         .slide-counter {
             margin-left: auto;
             color: white;
@@ -130,7 +130,7 @@
     </style>
 </head>
 <body>
-    
+
     <div class="chart-container">
         <div class="slide-navigation">
             <button class="slide-nav-btn active" onclick="showSlide(1)">1. Country Overview</button>
@@ -373,10 +373,12 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
         let globalParsedData = {};
 
         // Function to create the chart
-        function createChart(data) {
+        function createChart(data, renderSlider = false) {
             // Clear any existing chart elements
             g.selectAll("*").remove();
-            
+            // Clear slider if rendered
+            d3.select(".slider").selectAll("*").remove();
+
             // Create scales
             const xScale = d3.scaleTime()
                 .domain([new Date(1975, 1, 1), new Date(2023, 1, 1)])
@@ -391,7 +393,7 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
             const line = d3.line()
                 .x(d => xScale(d.date))
                 .y(d => yScale(d.value));
-            
+
             // Create a clipping path to prevent line from extending beyond chart area
             g.append("defs").append("clipPath")
                 .attr("id", "clip")
@@ -487,22 +489,24 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
                 .extent([[0, 0], [sliderWidth, sliderHeight - sliderMargin.bottom]])
                 .on("brush end", brushed);
 
-            const sliderSvg = d3.select(".slider")
-                .append("svg")
-                .attr("width", sliderWidth + sliderMargin.left + sliderMargin.right)
-                .attr("height", sliderHeight + sliderMargin.top + sliderMargin.bottom)
-                .append("g")
-                .attr("transform", "translate(20,10)");
+            if (renderSlider) {
+                const sliderSvg = d3.select(".slider")
+                    .append("svg")
+                    .attr("width", sliderWidth + sliderMargin.left + sliderMargin.right)
+                    .attr("height", sliderHeight + sliderMargin.top + sliderMargin.bottom)
+                    .append("g")
+                    .attr("transform", "translate(20,10)");
 
-            sliderSvg.append("g")
-                .attr("class", "x-axis")
-                .attr("transform", "translate(0,30)")
-                .call(d3.axisBottom(sliderScale));
+                sliderSvg.append("g")
+                    .attr("class", "x-axis")
+                    .attr("transform", "translate(0,30)")
+                    .call(d3.axisBottom(sliderScale));
 
-            sliderSvg.append("g")
-                .attr("class", "brush")
-                .call(brush)
-                .call(brush.move, sliderScale.range()); // default full range
+                sliderSvg.append("g")
+                    .attr("class", "brush")
+                    .call(brush)
+                    .call(brush.move, sliderScale.range()); // default full range
+            }
 
             function brushed(event) {
                 if (!event.selection) return;
@@ -522,7 +526,7 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
                 // Update dots
                 const dots = g.selectAll(".dot")
                     .data(visibleData);
-            
+
                 // Remove dots that are no longer visible
                 dots.exit().remove();
 
@@ -553,7 +557,7 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
         function loadEmbeddedData() {
             const csvData = d3.csvParse(embeddedCSV);
             console.log("Embedded CSV data:", csvData);
-            
+
             parseCSVData(csvData);
         }
 
@@ -562,7 +566,7 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
           const yearStart = 1975; // inclusive
           const yearEnd = 2023; // inclusive
           const aggregate = new Array(yearEnd - yearStart + 1).fill(0);
-          
+
           csvData.forEach(row => {
             const country = row['Country Name'];
             globalParsedData[country] = [];
@@ -584,8 +588,25 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
           });
         }
 
+        const showSlide = slide => {
+            const updateActiveClass = () => {
+                d3.selectAll(".slide-nav-btn")
+                    .classed("active", false);
+                d3.selectAll(".slide-nav-btn")
+                    .filter((d, i) => i === slide - 1)
+                    .classed("active", true);
+            }
+            if (slide === 1) {
+                createChart(globalParsedData['World']);
+                updateActiveClass();
+            } else if (slide === 2) {
+                createChart(globalParsedData['World'], renderSlider = true);
+                updateActiveClass();
+            }
+        }
+
         loadEmbeddedData();
-        createChart(globalParsedData['World']);
+        showSlide(1);
     </script>
 </body>
 </html>
