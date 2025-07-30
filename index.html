@@ -127,6 +127,77 @@
             color: white;
             font-weight: 500;
         }
+
+        .country-selector {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .country-selector label {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .country-checkboxes {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+            background: #fafafa;
+        }
+        
+        .country-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+        }
+        
+        .country-checkbox input[type="checkbox"] {
+            margin: 0;
+        }
+        
+        .clear-all {
+            padding: 6px 12px;
+            background: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .clear-all:hover {
+            background: #1976d2;
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 10px;
+            padding: 10px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+        }
+        
+        .legend-color {
+            width: 16px;
+            height: 3px;
+            border-radius: 1px;
+        }   
     </style>
 </head>
 <body>
@@ -140,6 +211,15 @@
                 <span id="current-slide">1</span> / 3
             </div>
         </div>
+        <div class="country-selector">
+            <label>Select Countries:</label>
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                <button class="clear-all" onclick="clearAllCountries()">Clear All</button>
+            </div>
+            <div class="country-checkboxes" id="country-checkboxes">
+            </div>
+        </div>
+        <div class="legend" id="legend"></div>
         <div id="chart"></div>
         <div class="tooltip" id="tooltip"></div>
         <div class="slider"></div>
@@ -371,6 +451,9 @@ Zambia,8.059,7.807,7.7646,7.4772,7.0267,8.0562,7.0772,5.803,5.32,5.0098,4.578,4.
 Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.5977,12.7159,12.74,15.8457,10.065,7.9404,8.2235,10.4832,10.6411,11.4364,10.2921,10.8569,13.256,14.5241,14.5954,16.8515,14.9697,14.7565,15.7173,16.266,16.5485,17.6722,19.2013,19.151,17.4087,15.5178,15.3259,15.8093,12.4127,10.865,9.3862,8.9405,9.0306,9.3925,9.7937,9.1875,8.9019,9.0191,10.0478,9.1677`;
 
         let globalParsedData = {};
+        let countrySelectOptions = [];
+        let countryColorScale;
+        let selectedCountries = [];
 
         // Function to create the chart
         function createChart(data, renderSlider = false) {
@@ -556,8 +639,6 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
 
         function loadEmbeddedData() {
             const csvData = d3.csvParse(embeddedCSV);
-            console.log("Embedded CSV data:", csvData);
-
             parseCSVData(csvData);
         }
 
@@ -570,6 +651,7 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
           csvData.forEach(row => {
             const country = row['Country Name'];
             globalParsedData[country] = [];
+            countrySelectOptions.push(country);
             for (let year = yearStart; year <= yearEnd; year++) {
               globalParsedData[country].push({
                 date: new Date(year, 0, 1),
@@ -579,6 +661,11 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
             }
           });
 
+          // sort countrySelectOptions alphabeticaly
+          countrySelectOptions = countrySelectOptions.sort()
+          // insert the World option so that it's top of the checklist
+          countrySelectOptions.splice(0, 0, 'World');
+
           // Add aggregated data into globalParsedData
           globalParsedData['World'] = aggregate.map((val, yearOffset) => {
             return {
@@ -586,6 +673,75 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
               value: val
             }
           });
+
+          // Color scale for countries
+          countryColorScale = d3.scaleOrdinal()
+            .domain(countrySelectOptions)
+            .range(d3.schemeCategory10.concat(d3.schemeSet3));
+        }
+
+        // Create country checkboxes
+        function createCountryCheckboxes() {
+            const container = d3.select("#country-checkboxes");
+            
+            const checkboxes = container.selectAll(".country-checkbox")
+                .data(countrySelectOptions)
+                .enter()
+                .append("div")
+                .attr("class", "country-checkbox");
+            
+            checkboxes.append("input")
+                .attr("type", "checkbox")
+                .attr("id", d => `country-${d.replace(/\s+/g, '-')}`)
+                .attr("value", d => d)
+                .property("checked", d => selectedCountries.includes(d))
+                .on("change", function(event, d) {
+                    if (this.checked) {
+                        if (!selectedCountries.includes(d)) {
+                            selectedCountries.push(d);
+                        }
+                    } else {
+                        selectedCountries = selectedCountries.filter(c => c !== d);
+                    }
+                    // updateChart();
+                    updateLegend();
+                });
+            
+            checkboxes.append("label")
+                .attr("for", d => `country-${d.replace(/\s+/g, '-')}`)
+                .text(d => d);
+        }
+
+        function clearAllCountries() {
+            selectedCountries = [];
+            updateCheckboxes();
+            // updateChart();
+            updateLegend();
+        }
+
+        function updateCheckboxes() {
+            d3.selectAll("#country-checkboxes input[type='checkbox']")
+                .property("checked", d => selectedCountries.includes(d));
+        }
+
+        function updateLegend() {
+            const legend = d3.select("#legend");
+            legend.selectAll("*").remove();
+
+            if (selectedCountries.length === 0) return;
+
+            const legendItems = legend.selectAll(".legend-item")
+                .data(selectedCountries)
+                .enter()
+                .append("div")
+                .attr("class", "legend-item");
+
+            legendItems.append("div")
+                .attr("class", "legend-color")
+                .style("background-color", d => countryColorScale(d));
+
+            legendItems.append("span")
+                .text(d => d);
         }
 
         const showSlide = slide => {
@@ -596,6 +752,7 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
                     .filter((d, i) => i === slide - 1)
                     .classed("active", true);
             }
+            createCountryCheckboxes();
             if (slide === 1) {
                 createChart(globalParsedData['World']);
                 updateActiveClass();
