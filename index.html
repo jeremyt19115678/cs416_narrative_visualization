@@ -39,18 +39,15 @@
 
         .line {
             fill: none;
-            stroke: #2563eb;
             stroke-width: 2;
         }
 
         .dot {
-            fill: #2563eb;
             stroke: white;
             stroke-width: 2;
         }
 
         .dot:hover {
-            fill: #1d4ed8;
             r: 6;
         }
 
@@ -120,12 +117,6 @@
         .slide-nav-btn.active {
             background: white;
             color: #2563eb;
-        }
-
-        .slide-counter {
-            margin-left: auto;
-            color: white;
-            font-weight: 500;
         }
 
         .country-selector {
@@ -204,12 +195,9 @@
 
     <div class="chart-container">
         <div class="slide-navigation">
-            <button class="slide-nav-btn active" onclick="showSlide(1)">1. Country Overview</button>
-            <button class="slide-nav-btn" onclick="showSlide(2)">2. Time Range Analysis</button>
+            <button class="slide-nav-btn active" onclick="showSlide(1)">1. Global Overview</button>
+            <button class="slide-nav-btn" onclick="showSlide(2)">2. Specific Time Range</button>
             <button class="slide-nav-btn" onclick="showSlide(3)">3. Country-Specific View</button>
-            <div class="slide-counter">
-                <span id="current-slide">1</span> / 3
-            </div>
         </div>
         <div class="country-selector">
             <label>Select Countries:</label>
@@ -241,8 +229,111 @@
         const g = svg.append("g")
             .attr("transform", `translate(${margin.left},${margin.top})`);
 
+        // Create scales
+        const xScale = d3.scaleTime()
+            .domain([new Date(1975, 0, 1), new Date(2023, 0, 1)])
+            .nice()
+            .range([0, width]);
+
+        const yScale = d3.scaleLinear()
+            .nice()
+            .range([height, 0]);
+
+        // Create line generator
+        const line = d3.line()
+            .x(d => xScale(d.date))
+            .y(d => yScale(d.value));
+
+        // Create a clipping path to prevent line from extending beyond chart area
+        g.append("defs").append("clipPath")
+            .attr("id", "clip")
+            .append("rect")
+            .attr("width", width)
+            .attr("height", height);
+
+        // Add grid lines
+        g.append("g")
+            .attr("class", "grid")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(xScale)
+                .tickSize(-height)
+                .tickFormat("")
+            );
+
+        g.append("g")
+            .attr("class", "grid")
+            .call(d3.axisLeft(yScale)
+                .tickSize(-width)
+                .tickFormat("")
+            );
+
+        // Add X axis
+        const xAxis = g.append("g")
+            .attr("class", "axis")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(xScale)
+                .tickFormat(d3.timeFormat("%Y")));
+
+        // Add Y axis
+        const yAxis = g.append("g")
+            .attr("class", "axis")
+            .call(d3.axisLeft(yScale));
+
+        // Add X axis label
+        g.append("text")
+            .attr("class", "axis-label")
+            .attr("transform", `translate(${width/2}, ${height + 50})`)
+            .style("text-anchor", "middle")
+            .text("Date");
+
+        // Add Y axis label
+        g.append("text")
+            .attr("class", "axis-label")
+            .attr("transform", "rotate(-90)")
+            .attr("y", 0 - margin.left)
+            .attr("x", 0 - (height / 2))
+            .attr("dy", "1em")
+            .style("text-anchor", "middle")
+            .text("Total CO2 emissions (Mt CO2e)");
+
+        // Containers for lines and dots
+        const linesContainer = g.append("g")
+            .attr("class", "lines")
+            .attr("clip-path", "url(#clip)");
+
+        const dotsContainer = g.append("g")
+            .attr("class", "dots")
+            .attr("clip-path", "url(#clip)");
+
         // Create tooltip
         const tooltip = d3.select("#tooltip");
+
+        // Create brush
+        const sliderWidth = 600;
+        const sliderHeight = 40;
+        const sliderMargin = { top: 10, right: 30, bottom: 20, left: 30 };
+        const sliderMinStart = new Date(1975, 0, 1);
+        const sliderMaxEnd  = new Date(2023, 0, 1);
+
+        const sliderScale = d3.scaleTime()
+            .domain([sliderMinStart, sliderMaxEnd])
+            .range([0, sliderWidth]);
+
+        const brush = d3.brushX()
+            .extent([[0, 0], [sliderWidth, sliderHeight - sliderMargin.bottom]])
+            .on("brush end", brushed);
+
+        const sliderSvg = d3.select(".slider")
+            .append("svg")
+            .attr("width", sliderWidth + sliderMargin.left + sliderMargin.right)
+            .attr("height", sliderHeight + sliderMargin.top + sliderMargin.bottom)
+            .append("g")
+            .attr("transform", `translate(${sliderMargin.left},${sliderMargin.top})`);
+
+        sliderSvg.append("g")
+            .attr("class", "slider-axis")
+            .attr("transform", `translate(0,${sliderHeight - sliderMargin.bottom})`)
+            .call(d3.axisBottom(sliderScale));
 
         // embedded CSV to avoid doing network calls
         const embeddedCSV = `Country Name,2023,2022,2021,2020,2019,2018,2017,2016,2015,2014,2013,2012,2011,2010,2009,2008,2007,2006,2005,2004,2003,2002,2001,2000,1999,1998,1997,1996,1995,1994,1993,1992,1991,1990,1989,1988,1987,1986,1985,1984,1983,1982,1981,1980,1979,1978,1977,1976,1975
@@ -453,98 +544,72 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
         let globalParsedData = {};
         let countrySelectOptions = [];
         let countryColorScale;
-        let selectedCountries = [];
+        let selectedCountries = ['World'];
+        let currSlide = 1;
+        let sliderStart = sliderMinStart;
+        let sliderEnd = sliderMaxEnd;
 
         // Function to create the chart
-        function createChart(data, renderSlider = false) {
-            // Clear any existing chart elements
-            g.selectAll("*").remove();
-            // Clear slider if rendered
-            d3.select(".slider").selectAll("*").remove();
+        function updateChart() {
+            let renderData = [];
+            if (currSlide === 1) {
+                renderData = globalParsedData['World'];
+                xScale.domain([sliderMinStart, sliderMaxEnd]);
+            } else if (currSlide === 2) {
+                renderData = globalParsedData['World'];
+                xScale.domain([sliderStart, sliderEnd]);
+            } else if (currSlide === 3) {
+                selectedCountries.forEach(country => {
+                    globalParsedData[country].forEach(d => {
+                        renderData.push(d);
+                    });
+                });
+                console.log(renderData);
+            }
 
-            // Create scales
-            const xScale = d3.scaleTime()
-                .domain([new Date(1975, 1, 1), new Date(2023, 1, 1)])
-                .range([0, width]);
+            // Group data together so they can be color coded
+            const groupedLines = d3.group(renderData, d => d.country);
 
-            const yScale = d3.scaleLinear()
-                .domain(d3.extent(data, d => d.value))
-                .nice()
-                .range([height, 0]);
+            // Update axis
+            yScale.domain([0, d3.max(renderData, d => d.value) || d3.max(globalParsedData['World'], d => d.value)]);
+            xAxis.call(d3.axisBottom(xScale));
+            yAxis.call(d3.axisLeft(yScale));
 
-            // Create line generator
-            const line = d3.line()
-                .x(d => xScale(d.date))
-                .y(d => yScale(d.value));
+            // Update lines
+            const lines = linesContainer.selectAll(".country-line")
+                .data(Array.from(groupedLines), d => console.log(d));
 
-            // Create a clipping path to prevent line from extending beyond chart area
-            g.append("defs").append("clipPath")
-                .attr("id", "clip")
-                .append("rect")
-                .attr("width", width)
-                .attr("height", height);
+            lines.exit().remove();
 
+            const linesEnter = lines.enter()
+                .append("path")
+                .attr("class", "country-line line")
+                .attr("stroke", d => countryColorScale(d.country));
 
-            // Add grid lines
-            g.append("g")
-                .attr("class", "grid")
-                .attr("transform", `translate(0,${height})`)
-                .call(d3.axisBottom(xScale)
-                    .tickSize(-height)
-                    .tickFormat("")
-                );
+            lines.merge(linesEnter)
+                .transition()
+                .duration(300)
+                .attr("d", d => line(d[1]))
+                .attr("stroke", d => countryColorScale(d[0]));
 
-            g.append("g")
-                .attr("class", "grid")
-                .call(d3.axisLeft(yScale)
-                    .tickSize(-width)
-                    .tickFormat("")
-                );
+            // Update dots
+            const dots = dotsContainer.selectAll(".dot")
+                .data(renderData, d => `${d.country}-${d.date}`);
 
-            // Add X axis
-            const xAxis = g.append("g")
-                .attr("class", "axis")
-                .attr("transform", `translate(0,${height})`)
-                .call(d3.axisBottom(xScale)
-                    .tickFormat(d3.timeFormat("%Y")));
+            dots.exit().remove();
 
-            // Add Y axis
-            const yAxis = g.append("g")
-                .attr("class", "axis")
-                .call(d3.axisLeft(yScale));
-
-            // Add X axis label
-            g.append("text")
-                .attr("class", "axis-label")
-                .attr("transform", `translate(${width/2}, ${height + 50})`)
-                .style("text-anchor", "middle")
-                .text("Date");
-
-            // Add Y axis label
-            g.append("text")
-                .attr("class", "axis-label")
-                .attr("transform", "rotate(-90)")
-                .attr("y", 0 - margin.left)
-                .attr("x", 0 - (height / 2))
-                .attr("dy", "1em")
-                .style("text-anchor", "middle")
-                .text("Total CO2 emissions (Mt CO2e)");
-
-            // Add the line
-            const path = g.append("path")
-                .datum(data)
-                .attr("class", "line")
-                .attr("clip-path", "url(#clip)")
-                .attr("d", line);
-
-            // Add dots
-            g.selectAll(".dot")
-                .data(data)
-                .enter().append("circle")
+            dots.enter()
+                .append("circle")
                 .attr("class", "dot")
+                .attr("r", 4)
+                .merge(dots)
+                .transition()
+                .duration(300)
                 .attr("cx", d => xScale(d.date))
                 .attr("cy", d => yScale(d.value))
-                .attr("r", 4)
+                .attr("fill", d => countryColorScale(d.country));
+
+            /*
                 .on("mouseover", function(event, d) {
                     tooltip.transition()
                         .duration(200)
@@ -558,83 +623,7 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
                         .duration(500)
                         .style("opacity", 0);
                 });
-
-            // Create slider
-            const sliderWidth = 600;
-            const sliderHeight = 40;
-            const sliderMargin = { top: 10, right: 30, bottom: 20, left: 30 };
-
-            const sliderScale = d3.scaleTime()
-                .domain(d3.extent(data, d => d.date))
-                .range([0, sliderWidth]);
-
-            const brush = d3.brushX()
-                .extent([[0, 0], [sliderWidth, sliderHeight - sliderMargin.bottom]])
-                .on("brush end", brushed);
-
-            if (renderSlider) {
-                const sliderSvg = d3.select(".slider")
-                    .append("svg")
-                    .attr("width", sliderWidth + sliderMargin.left + sliderMargin.right)
-                    .attr("height", sliderHeight + sliderMargin.top + sliderMargin.bottom)
-                    .append("g")
-                    .attr("transform", "translate(20,10)");
-
-                sliderSvg.append("g")
-                    .attr("class", "x-axis")
-                    .attr("transform", "translate(0,30)")
-                    .call(d3.axisBottom(sliderScale));
-
-                sliderSvg.append("g")
-                    .attr("class", "brush")
-                    .call(brush)
-                    .call(brush.move, sliderScale.range()); // default full range
-            }
-
-            function brushed(event) {
-                if (!event.selection) return;
-
-                const [start, end] = event.selection.map(sliderScale.invert);
-                const visibleData = data.filter(d => d.date >= start && d.date <= end);
-                console.log(visibleData);
-
-                // Update x domain
-                xScale.domain([start, end]);
-
-                // Redraw axis and line
-                xAxis.call(d3.axisBottom(xScale));
-                yAxis.call(d3.axisLeft(yScale));
-                path.attr("d", line);
-
-                // Update dots
-                const dots = g.selectAll(".dot")
-                    .data(visibleData);
-
-                // Remove dots that are no longer visible
-                dots.exit().remove();
-
-                // Add new dots
-                dots.enter().append("circle")
-                    .attr("class", "dot")
-                    .merge(dots)
-                    .attr("cx", d => xScale(d.date))
-                    .attr("cy", d => yScale(d.value))
-                    .attr("r", 4)
-                    .on("mouseover", function(event, d) {
-                        tooltip.transition()
-                            .duration(200)
-                            .style("opacity", .9);
-                        tooltip.html(`Year: ${d3.timeFormat("%Y")(d.date)}<br/>Value: ${Math.round(d.value * 100) / 100}`)
-                            .style("left", (event.pageX + 10) + "px")
-                            .style("top", (event.pageY - 28) + "px");
-                    })
-                    .on("mouseout", function(d) {
-                        tooltip.transition()
-                            .duration(500)
-                            .style("opacity", 0);
-                    })
-                    .transition();
-            }
+            */
         }
 
         function loadEmbeddedData() {
@@ -655,7 +644,8 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
             for (let year = yearStart; year <= yearEnd; year++) {
               globalParsedData[country].push({
                 date: new Date(year, 0, 1),
-                value: + row[year]
+                value: + row[year],
+                'country': country,
               });
               aggregate[year - yearStart] += + row[year];
             }
@@ -670,7 +660,8 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
           globalParsedData['World'] = aggregate.map((val, yearOffset) => {
             return {
               date: new Date(yearStart + yearOffset, 0, 1),
-              value: val
+              value: val,
+              country: 'World',
             }
           });
 
@@ -678,6 +669,8 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
           countryColorScale = d3.scaleOrdinal()
             .domain(countrySelectOptions)
             .range(d3.schemeCategory10.concat(d3.schemeSet3));
+          
+          sliderScale.domain(d3.extent(globalParsedData['World'], d => d.date))
         }
 
         // Create country checkboxes
@@ -696,6 +689,7 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
                 .attr("value", d => d)
                 .property("checked", d => selectedCountries.includes(d))
                 .on("change", function(event, d) {
+                    console.log(d);
                     if (this.checked) {
                         if (!selectedCountries.includes(d)) {
                             selectedCountries.push(d);
@@ -703,7 +697,7 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
                     } else {
                         selectedCountries = selectedCountries.filter(c => c !== d);
                     }
-                    // updateChart();
+                    updateChart();
                     updateLegend();
                 });
             
@@ -715,7 +709,7 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
         function clearAllCountries() {
             selectedCountries = [];
             updateCheckboxes();
-            // updateChart();
+            updateChart();
             updateLegend();
         }
 
@@ -744,6 +738,22 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
                 .text(d => d);
         }
 
+        function setControlVisibility() {
+            if (currSlide === 1) {
+                d3.select(".country-selector").style("display", "none");
+                d3.select(".slider").style("display", "none");
+                d3.select("#legend").style("display", "none");
+            } else if (currSlide === 2) {
+                d3.select(".country-selector").style("display", "none");
+                d3.select(".slider").style("display", "unset");
+                d3.select("#legend").style("display", "none");
+            } else if (currSlide === 3) {
+                d3.select(".country-selector").style("display", "unset");
+                d3.select(".slider").style("display", "unset");
+                d3.select("#legend").style("display", "unset");
+            }
+        }
+
         const showSlide = slide => {
             const updateActiveClass = () => {
                 d3.selectAll(".slide-nav-btn")
@@ -752,18 +762,35 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
                     .filter((d, i) => i === slide - 1)
                     .classed("active", true);
             }
-            createCountryCheckboxes();
-            if (slide === 1) {
-                createChart(globalParsedData['World']);
-                updateActiveClass();
-            } else if (slide === 2) {
-                createChart(globalParsedData['World'], renderSlider = true);
-                updateActiveClass();
+            if (slide >= 1 && slide <= 3) {
+                currSlide = slide;
             }
+            createCountryCheckboxes();
+            updateChart();
+            updateActiveClass();
+            setControlVisibility();
         }
 
         loadEmbeddedData();
         showSlide(1);
+
+        sliderSvg.append("g")
+            .attr("class", "brush")
+            .call(brush)
+            .call(brush.move, sliderScale.range()); // default full range
+
+        function brushed(event) {
+            if (!event.selection) return;
+
+            const [start, end] = event.selection.map(sliderScale.invert);
+            sliderStart = start;
+            sliderEnd = end;
+
+            // Update x domain
+            xScale.domain([sliderStart, sliderEnd]);
+
+            updateChart();
+        }
     </script>
 </body>
 </html>
