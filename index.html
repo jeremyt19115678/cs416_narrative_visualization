@@ -98,6 +98,8 @@
             display: flex;
             gap: 10px;
             align-items: center;
+            margin-bottom: 10px;
+            border-radius: 6px;
         }
 
         .slide-nav-btn {
@@ -212,6 +214,32 @@
             text-anchor: middle;
             pointer-events: none;
         }
+
+        .brush .selection {
+            fill: rgba(33, 150, 243, 0.2);
+            stroke: #2196f3;
+            stroke-width: 1;
+        }
+        
+        .slider-axis text {
+            font-size: 10px;
+            fill: #666;
+        }
+        
+        .slider-axis path,
+        .slider-axis line {
+            fill: none;
+            stroke: #666;
+            shape-rendering: crispEdges;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: center;
+        }
     </style>
 </head>
 
@@ -231,7 +259,9 @@
             <div class="country-checkboxes" id="country-checkboxes">
             </div>
         </div>
-        <div class="legend" id="legend"></div>
+        <div id="legend-container">
+            <div class="legend" id="legend"></div>
+        </div>
         <div id="chart"></div>
         <div class="tooltip" id="tooltip"></div>
         <div class="slider"></div>
@@ -239,8 +269,8 @@
 
     <script>
         // Chart dimensions and margins
-        const margin = { top: 20, right: 30, bottom: 60, left: 60 };
-        const width = 800 - margin.left - margin.right;
+        const margin = { top: 20, right: 30, bottom: 60, left: 80 };
+        const width = 900 - margin.left - margin.right;
         const height = 400 - margin.top - margin.bottom;
 
         // Create SVG container
@@ -307,7 +337,7 @@
             .attr("class", "axis-label")
             .attr("transform", `translate(${width / 2}, ${height + 50})`)
             .style("text-anchor", "middle")
-            .text("Date");
+            .text("Year");
 
         // Add Y axis label
         g.append("text")
@@ -398,9 +428,9 @@
         });
 
         // Create brush
-        const sliderWidth = 600;
+        const sliderWidth = width;
         const sliderHeight = 40;
-        const sliderMargin = { top: 10, right: 30, bottom: 20, left: 30 };
+        const sliderMargin = { top: 10, right: 30, bottom: 20, left: 80 };
         const yearStart = 1975; // inclusive
         const yearEnd = 2023; // inclusive
         const sliderMinStart = new Date(yearStart - 1, 0, 1);
@@ -891,15 +921,15 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
             if (currSlide === 1) {
                 d3.select(".country-selector").style("display", "none");
                 d3.select(".slider").style("display", "none");
-                d3.select("#legend").style("display", "none");
+                d3.select("#legend-container").style("display", "none");
             } else if (currSlide === 2) {
                 d3.select(".country-selector").style("display", "none");
                 d3.select(".slider").style("display", "unset");
-                d3.select("#legend").style("display", "none");
+                d3.select("#legend-container").style("display", "none");
             } else if (currSlide === 3) {
-                d3.select(".country-selector").style("display", "unset");
+                d3.select(".country-selector").style("display", "flex");
                 d3.select(".slider").style("display", "unset");
-                d3.select("#legend").style("display", "unset");
+                d3.select("#legend-container").style("display", "unset");
             }
         }
 
@@ -917,16 +947,29 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
             createCountryCheckboxes();
             updateChart();
             updateActiveClass();
+            updateLegend();
             setControlVisibility();
         }
 
         loadEmbeddedData();
         showSlide(1);
 
-        sliderSvg.append("g")
+        const brushG = sliderSvg.append("g")
             .attr("class", "brush")
             .call(brush)
             .call(brush.move, sliderScale.range()); // default full range
+
+        // Customize brush handles
+        brushG.selectAll(".handle")
+            .style("fill", "#2196f3")
+            .style("stroke", "#1976d2")
+            .style("stroke-width", "2px")
+            .style("cursor", "ew-resize")
+            .attr("width", 8)
+            .attr("height", sliderHeight - sliderMargin.bottom + 4)
+            .attr("y", -2)
+            .attr("rx", 3);
+
 
         function brushed(event) {
             if (!event.selection) return;
