@@ -220,12 +220,12 @@
             stroke: #2196f3;
             stroke-width: 1;
         }
-        
+
         .slider-axis text {
             font-size: 10px;
             fill: #666;
         }
-        
+
         .slider-axis path,
         .slider-axis line {
             fill: none;
@@ -305,20 +305,12 @@
             .attr("height", height);
 
         // Add grid lines
-        g.append("g")
+        const xGridContainer = g.append("g")
             .attr("class", "grid")
-            .attr("transform", `translate(0,${height})`)
-            .call(d3.axisBottom(xScale)
-                .tickSize(-height)
-                .tickFormat("")
-            );
+            .attr("transform", `translate(0,${height})`);
 
-        g.append("g")
-            .attr("class", "grid")
-            .call(d3.axisLeft(yScale)
-                .tickSize(-width)
-                .tickFormat("")
-            );
+        const yGridContainer = g.append("g")
+            .attr("class", "grid");
 
         // Add X axis
         const xAxis = g.append("g")
@@ -408,7 +400,7 @@
         const tooltip = d3.select("#tooltip");
 
         // Add hover interactions
-        dotsContainer.on("mouseover", function(event) {
+        dotsContainer.on("mouseover", function (event) {
             if (event.target.classList.contains('dot')) {
                 const dotData = d3.select(event.target).datum();
                 tooltip.transition().duration(300).style("opacity", 0.9);
@@ -423,9 +415,9 @@
                     .style("top", (event.pageY - 30) + "px");
             }
         })
-        .on("mouseout", function() {
-            tooltip.transition().duration(300).style("opacity", 0);
-        });
+            .on("mouseout", function () {
+                tooltip.transition().duration(300).style("opacity", 0);
+            });
 
         // Create brush
         const sliderWidth = width;
@@ -695,6 +687,21 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
             xAxis.call(d3.axisBottom(xScale));
             yAxis.call(d3.axisLeft(yScale));
 
+            // Update grid lines
+            xGridContainer.transition()
+                .duration(300)
+                .call(d3.axisBottom(xScale)
+                    .tickSize(-height)
+                    .tickFormat("")
+                );
+
+            yGridContainer.transition()
+                .duration(300)
+                .call(d3.axisLeft(yScale)
+                    .tickSize(-width)
+                    .tickFormat("") // yGrid
+                );
+
             // Update annotations
             updateAnnotations();
 
@@ -846,7 +853,7 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
                 .text(d => d);
         }
 
-       function updateAnnotations() {
+        function updateAnnotations() {
             // Get current domain to check which annotations are visible
             const [domainStart, domainEnd] = xScale.domain();
 
