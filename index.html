@@ -246,25 +246,27 @@
 <body>
 
     <div class="chart-container">
+        <h1>Global CO2 Emissions by Country (1975-2023)</h1>
         <div class="slide-navigation">
             <button class="slide-nav-btn active" onclick="showSlide(1)">1. Global Overview</button>
             <button class="slide-nav-btn" onclick="showSlide(2)">2. Specific Time Range</button>
             <button class="slide-nav-btn" onclick="showSlide(3)">3. Country-Specific View</button>
         </div>
+        <p id="slide-caption">Subtitle goes here.</p>
+        <div id="chart"></div>
+        <div class="tooltip" id="tooltip"></div>
+        <div class="slider"></div>
         <div class="country-selector">
             <label>Select Countries:</label>
             <div style="display: flex; gap: 10px; margin-bottom: 10px;">
                 <button class="clear-all" onclick="clearAllCountries()">Clear All</button>
             </div>
-            <div class="country-checkboxes" id="country-checkboxes">
-            </div>
-        </div>
         <div id="legend-container">
             <div class="legend" id="legend"></div>
         </div>
-        <div id="chart"></div>
-        <div class="tooltip" id="tooltip"></div>
-        <div class="slider"></div>
+            <div class="country-checkboxes" id="country-checkboxes">
+            </div>
+        </div>
     </div>
 
     <script>
@@ -840,7 +842,7 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
             if (selectedCountries.length === 0) return;
 
             const legendItems = legend.selectAll(".legend-item")
-                .data(selectedCountries)
+                .data(legendOrder)
                 .enter()
                 .append("div")
                 .attr("class", "legend-item");
@@ -924,6 +926,17 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
                 .text(d => d.description);
         }
 
+        function updateCaption() {
+            const caption = d3.select("#slide-caption");
+            if (currSlide === 1) {
+                caption.html("Annual global carbon dioxide emission had more than doubled from 1975 to 2023, reflecting the growing industrialization and energy demands across the world.");
+            } else if (currSlide === 2) {
+                caption.html("Explore how carbon dioxide emissions have evolved over time by adjusting the viewing window. While certain historical events reduced emission for some years, the effects were only temporary.");
+            } else if (currSlide === 3) {
+                caption.html("Use the filter to isolate individual nations and see their emission contribution over time. While developed nations have historically been the largest emitters, many developing nations are now catching up.");
+            }
+        }
+
         function setControlVisibility() {
             if (currSlide === 1) {
                 d3.select(".country-selector").style("display", "none");
@@ -955,6 +968,7 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
             updateChart();
             updateActiveClass();
             updateLegend();
+            updateCaption();
             setControlVisibility();
         }
 
