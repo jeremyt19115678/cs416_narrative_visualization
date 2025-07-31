@@ -255,7 +255,6 @@
 
         // Create scales
         const xScale = d3.scaleTime()
-            .domain([new Date(1975, 0, 1), new Date(2023, 0, 1)])
             .nice()
             .range([0, width]);
 
@@ -320,18 +319,19 @@
             .style("text-anchor", "middle")
             .text("Total CO2 emissions (Mt CO2e)");
 
-        // Containers for lines and dots
+        // Container for lines
         const linesContainer = g.append("g")
             .attr("class", "lines")
             .attr("clip-path", "url(#clip)");
 
-        const dotsContainer = g.append("g")
-            .attr("class", "dots")
-            .attr("clip-path", "url(#clip)");
-
-        // Add annotation regions container
+        // Container for annotation regions (before dots to avoid interfering with mouse events)
         const annotationsContainer = g.append("g")
             .attr("class", "annotations")
+            .attr("clip-path", "url(#clip)");
+
+        // Container for dots
+        const dotsContainer = g.append("g")
+            .attr("class", "dots")
             .attr("clip-path", "url(#clip)");
 
         // Define annotation regions for major events
@@ -377,12 +377,34 @@
         // Create tooltip
         const tooltip = d3.select("#tooltip");
 
+        // Add hover interactions
+        dotsContainer.on("mouseover", function(event) {
+            if (event.target.classList.contains('dot')) {
+                const dotData = d3.select(event.target).datum();
+                tooltip.transition().duration(300).style("opacity", 0.9);
+                const getYearString = d3.utcFormat("%Y");
+                let tooltipHTML = `${dotData.country}<br/>Year: ${getYearString(dotData.date)}<br/>Emissions: ${dotData.value.toFixed(2)} Mt CO2`;
+                if (currSlide === 3 && dotData.country != "World") {
+                    const percentage = dotData.value * 100 / globalParsedData['World'][dotData.date.getUTCFullYear() - yearStart].value;
+                    tooltipHTML = tooltipHTML + `<br/>${percentage.toFixed(4)}% of World's emission`;
+                }
+                tooltip.html(tooltipHTML)
+                    .style("left", (event.pageX + 10) + "px")
+                    .style("top", (event.pageY - 30) + "px");
+            }
+        })
+        .on("mouseout", function() {
+            tooltip.transition().duration(300).style("opacity", 0);
+        });
+
         // Create brush
         const sliderWidth = 600;
         const sliderHeight = 40;
         const sliderMargin = { top: 10, right: 30, bottom: 20, left: 30 };
-        const sliderMinStart = new Date(1975, 0, 1);
-        const sliderMaxEnd = new Date(2023, 0, 1);
+        const yearStart = 1975; // inclusive
+        const yearEnd = 2023; // inclusive
+        const sliderMinStart = new Date(yearStart - 1, 0, 1);
+        const sliderMaxEnd = new Date(yearEnd + 1, 0, 1);
 
         const sliderScale = d3.scaleTime()
             .domain([sliderMinStart, sliderMaxEnd])
@@ -633,14 +655,13 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
                         renderData.push(d);
                     });
                 });
-                console.log(renderData);
             }
 
             // Group data together so they can be color coded
             const groupedLines = d3.group(renderData, d => d.country);
 
             // Update axis
-            yScale.domain([0, d3.max(renderData, d => d.value) || d3.max(globalParsedData['World'], d => d.value)]);
+            yScale.domain([0, (d3.max(renderData, d => d.value) || d3.max(globalParsedData['World'], d => d.value)) * 1.05]);
             xAxis.call(d3.axisBottom(xScale));
             yAxis.call(d3.axisLeft(yScale));
 
@@ -649,7 +670,7 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
 
             // Update lines
             const lines = linesContainer.selectAll(".country-line")
-                .data(Array.from(groupedLines), d => console.log(d));
+                .data(Array.from(groupedLines));
 
             lines.exit().remove();
 
@@ -680,22 +701,6 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
                 .attr("cx", d => xScale(d.date))
                 .attr("cy", d => yScale(d.value))
                 .attr("fill", d => countryColorScale(d.country));
-
-            /*
-                .on("mouseover", function(event, d) {
-                    tooltip.transition()
-                        .duration(200)
-                        .style("opacity", .9);
-                    tooltip.html(`Year: ${d3.timeFormat("%Y")(d.date)}<br/>Value: ${Math.round(d.value * 100) / 100}`)
-                        .style("left", (event.pageX + 10) + "px")
-                        .style("top", (event.pageY - 28) + "px");
-                })
-                .on("mouseout", function(d) {
-                    tooltip.transition()
-                        .duration(500)
-                        .style("opacity", 0);
-                });
-            */
         }
 
         function loadEmbeddedData() {
@@ -705,8 +710,6 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
 
         // Function to parse CSV data
         function parseCSVData(csvData) {
-            const yearStart = 1975; // inclusive
-            const yearEnd = 2023; // inclusive
             const aggregate = new Array(yearEnd - yearStart + 1).fill(0);
 
             csvData.forEach(row => {
@@ -741,8 +744,6 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
             countryColorScale = d3.scaleOrdinal()
                 .domain(countrySelectOptions)
                 .range(d3.schemeCategory10.concat(d3.schemeSet3));
-
-            sliderScale.domain(d3.extent(globalParsedData['World'], d => d.date))
         }
 
         // Create country checkboxes
@@ -761,7 +762,6 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
                 .attr("value", d => d)
                 .property("checked", d => selectedCountries.includes(d))
                 .on("change", function (event, d) {
-                    console.log(d);
                     if (this.checked) {
                         if (!selectedCountries.includes(d)) {
                             selectedCountries.push(d);
@@ -934,7 +934,6 @@ Zimbabwe,11.7441,10.963,10.6233,9.0721,11.1692,12.27,10.5854,11.2663,12.6895,12.
             const [start, end] = event.selection.map(sliderScale.invert);
             sliderStart = start;
             sliderEnd = end;
-
             // Update x domain
             xScale.domain([sliderStart, sliderEnd]);
 
